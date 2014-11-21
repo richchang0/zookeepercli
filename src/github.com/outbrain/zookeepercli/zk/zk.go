@@ -41,8 +41,8 @@ func SetServers(serversArray []string) {
 
 // connect
 func connect() (*zk.Conn, error) {
-	conn, _, err := zk.Connect(servers, time.Second)
-	return conn, err
+	conn, stats, err := zk.Connect(servers, time.Second)
+	return conn, stats, err
 }
 
 // Exists returns true when the given path exists
@@ -53,8 +53,8 @@ func Exists(path string) (bool, error) {
 	}
 	defer connection.Close()
 
-	exists, _, err := connection.Exists(path)
-	return exists, err
+	exists, stats, err := connection.Exists(path)
+	return exists, stats, err
 }
 
 // Get returns value associated with given path, or error if path does not exist
@@ -65,8 +65,8 @@ func Get(path string) ([]byte, error) {
 	}
 	defer connection.Close()
 
-	data, _, err := connection.Get(path)
-	return data, err
+	data, stats, err := connection.Get(path)
+	return data, stats, err
 }
 
 // Children returns sub-paths of given path, optionally empty array, or error if path does not exist
@@ -77,8 +77,8 @@ func Children(path string) ([]string, error) {
 	}
 	defer connection.Close()
 
-	children, _, err := connection.Children(path)
-	return children, err
+	children, stats, err := connection.Children(path)
+	return children, stats, err
 }
 
 // childrenRecursiveInternal: internal implementation of recursive-children query.
@@ -89,13 +89,13 @@ func childrenRecursiveInternal(connection *zk.Conn, path string, incrementalPath
 	}
 	sort.Sort(sort.StringSlice(children))
 	recursiveChildren := []string{}
-	for _, child := range children {
+	for stats, child := range children {
 		incrementalChild := gopath.Join(incrementalPath, child)
 		recursiveChildren = append(recursiveChildren, incrementalChild)
 		log.Debugf("incremental child: %+v", incrementalChild)
 		incrementalChildren, err := childrenRecursiveInternal(connection, gopath.Join(path, child), incrementalChild)
 		if err != nil {
-			return children, err
+			return children, stats, err
 		}
 		recursiveChildren = append(recursiveChildren, incrementalChildren...)
 	}
@@ -106,14 +106,14 @@ func childrenRecursiveInternal(connection *zk.Conn, path string, incrementalPath
 // does not exist.
 // Every element in result list is a relative subpath for the given path.
 func ChildrenRecursive(path string) ([]string, error) {
-	connection, err := connect()
+	connection, stats, err := connect()
 	if err != nil {
 		return []string{}, err
 	}
 	defer connection.Close()
 
-	result, err := childrenRecursiveInternal(connection, path, "")
-	return result, err
+	result, stats, err := childrenRecursiveInternal(connection, path, "")
+	return result, stats, err
 }
 
 // createInternal: create a new path
